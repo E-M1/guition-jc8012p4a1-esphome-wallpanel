@@ -1,0 +1,52 @@
+services:
+  rwvserver:
+    image: strangev/remote-webview-server:latest  # use :beta for pre-release
+    container_name: remote-webview-server
+    restart: unless-stopped
+    environment:
+      TILE_SIZE: 64 #32
+      FULL_FRAME_TILE_COUNT: 4
+      FULL_FRAME_AREA_THRESHOLD: 0.5
+      FULL_FRAME_EVERY: 50
+      EVERY_NTH_FRAME: 1
+      MIN_FRAME_INTERVAL_MS: 90
+      JPEG_QUALITY: 80
+      MAX_BYTES_PER_MESSAGE: 61440
+      WS_PORT: 8085
+      DEBUG_PORT: 9221 # internal debug port
+      HEALTH_PORT: 18080
+      PREFERS_REDUCED_MOTION: false
+      INJECT_JS_URL: "https://example.com/keyboard.js"
+      INJECT_JS_ALLOW_HTTP: false
+      USER_DATA_DIR: /pw-data
+      BROWSER_LOCALE: "en-US"
+    ports:
+      - "8085:8085"                   # WebSocket stream
+      - "9222:9222"                   # external DevTools via socat
+    expose:
+      - "18080"                       # health endpoint (internal)
+      - "9221"                        # internal DevTools port
+    volumes:
+      - /home/rwvserver/pw-data:/pw-data
+    shm_size: 1gb
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:18080 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  debug-proxy:
+    image: alpine/socat
+    container_name: remote-webview-server-debug
+    restart: unless-stopped
+    network_mode: "service:rwvserver"
+    depends_on:
+      rwvserver:
+        condition: service_healthy
+    command:
+      - "-d"
+      - "-d"
+      - "TCP-LISTEN:9222,fork,reuseaddr,keepalive" # external DevTools port
+      - "TCP:127.0.0.1:9221"
+

@@ -1,0 +1,119 @@
+substitutions:
+  name: jc8012-panel
+  friendly_name: Wall Panel
+  rwv_server: "192.168.1.100:8085"                     # CHANGE ME (machine running RemoteWebViewServer)
+  rwv_url: "http://192.168.1.100:8123/lovelace/tabletview"  # CHANGE ME
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: 2026.1.0
+
+esp32:
+  variant: ESP32P4
+  cpu_frequency: 400MHz
+  framework:
+    type: esp-idf
+    advanced:
+      enable_idf_experimental_features: true
+    components:
+      - name: "espressif/esp_websocket_client"
+        ref: 1.5.0
+      - name: "bitbank2/jpegdec"
+        source: https://github.com/strange-v/jpegdec-esphome
+        ref: main
+
+esp32_hosted:
+  variant: ESP32C6
+  active_high: true
+  clk_pin: GPIO18
+  cmd_pin: GPIO19
+  d0_pin: GPIO14
+  d1_pin: GPIO15
+  d2_pin: GPIO16
+  d3_pin: GPIO17
+  reset_pin: GPIO54
+
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
+
+psram:
+  speed: 200MHz
+
+external_components:
+  - source: github://strange-v/RemoteWebViewClient@main
+    refresh: 0s
+    components: [remote_webview]
+  # gsl3680 — local patched copy, loaded from config/my_components/gsl3680
+  - source: my_components
+    components: [gsl3680]
+
+logger:
+  baud_rate: 115200
+  level: warn
+  hardware_uart: UART0
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "${name} setup"
+
+captive_portal:
+
+i2c:
+  - id: i2c_bus
+    sda: GPIO7
+    scl: GPIO8
+    frequency: 400kHz
+    scan: true
+
+display:
+  - platform: mipi_dsi
+    model: JC8012P4A1-V2
+    id: my_display
+    auto_clear_enabled: false
+
+touchscreen:
+  - platform: gsl3680
+    id: my_touch
+    reset_pin: GPIO22
+    interrupt_pin: GPIO21
+    update_interval: 100ms
+    transform:
+      swap_xy: false
+      mirror_x: true
+      mirror_y: false
+
+# Backlight enable pin (JC8012P4A1 backlight = GPIO23)
+output:
+  - platform: ledc
+    pin: GPIO23
+    id: backlight_pwm
+    frequency: 1000 Hz
+    min_power: 0.03
+    zero_means_zero: true
+
+light:
+  - platform: monochromatic
+    name: "Panel Backlight"
+    id: panel_backlight
+    output: backlight_pwm
+    restore_mode: RESTORE_DEFAULT_ON
+
+remote_webview:
+  id: rwv1
+  touchscreen_id: my_touch
+  server: ${rwv_server}
+  url: "self-test          # switch to url:${rwv_url} in Step 9
+  jpeg_quality: 80
+  min_frame_interval: 90
+  max_bytes_per_msg: 61440
+  full_frame_tile_count: 1
